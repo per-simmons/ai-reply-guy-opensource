@@ -9,8 +9,9 @@
     "service_worker": "background.js"
   },
   "externally_connectable": {
+    "_comment": "MUST update this list to your real deployment URL before installing. Anything matching here can drive the extension. Remove the localhost entry for production.",
     "matches": [
-      "https://your-app.workers.dev/*",
+      "https://REPLACE-ME.workers.dev/*",
       "http://localhost:3000/*"
     ]
   },

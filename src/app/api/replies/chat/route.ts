@@ -84,17 +84,15 @@ Return ONLY the JSON object.`;
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]) as { reply?: string; updatedDraft?: string | null; feedbackNote?: string | null };
 
-      // Auto-update memory if feedback was detected
-      if (parsed.feedbackNote) {
-        const currentPersona = profile?.ai_persona || "";
-        const timestamp = new Date().toISOString().split("T")[0];
-        const updated = currentPersona + `\n- [${timestamp}] ${parsed.feedbackNote}`;
-        await db.prepare("INSERT OR REPLACE INTO profile (id, twitter_user_id, twitter_handle, access_token, refresh_token, token_expires_at, ai_persona, updated_at) VALUES (1, COALESCE((SELECT twitter_user_id FROM profile WHERE id=1),''), COALESCE((SELECT twitter_handle FROM profile WHERE id=1),''), COALESCE((SELECT access_token FROM profile WHERE id=1),''), COALESCE((SELECT refresh_token FROM profile WHERE id=1),''), COALESCE((SELECT token_expires_at FROM profile WHERE id=1),0), ?, unixepoch())").bind(updated).run();
-      }
-
+      // SECURITY: do NOT auto-mutate the persona based on LLM output here.
+      // Tweet text is attacker-controlled and feeds into this prompt, so an
+      // injected instruction could plant arbitrary persistent text into the
+      // persona used by every future reply. Surface the proposed note to the
+      // client and require an explicit user action to persist it.
       return NextResponse.json({
         reply: parsed.reply || "Done.",
         updatedDraft: parsed.updatedDraft || null,
+        proposedFeedbackNote: parsed.feedbackNote || null,
       });
     }
   } catch { /* fall through */ }

@@ -38,9 +38,7 @@ export async function PATCH(request: NextRequest) {
   const db = await getDb();
 
   // Ensure profile row exists
-  await db
-    .prepare("INSERT OR IGNORE INTO profile (id, twitter_user_id, twitter_handle, access_token, refresh_token, token_expires_at) VALUES (1, '', '', '', '', 0)")
-    .run();
+  await db.prepare("INSERT OR IGNORE INTO profile (id) VALUES (1)").run();
 
   const updates: string[] = [];
   const params: unknown[] = [];

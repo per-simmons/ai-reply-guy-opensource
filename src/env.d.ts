@@ -8,4 +8,5 @@ interface CloudflareEnv {
   X_LIST_ID: string;
   CLAUDE_SERVER_URL: string;
   CLAUDE_SERVER_API_TOKEN: string;
+  WEBAPP_SECRET: string;
 }

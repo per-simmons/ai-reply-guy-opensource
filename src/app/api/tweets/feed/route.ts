@@ -40,21 +40,30 @@ export async function GET(request: NextRequest) {
   const db = await getDb();
 
   const { searchParams } = new URL(request.url);
-  const sinceId = searchParams.get("since_id");
+  const sinceIdRaw = searchParams.get("since_id");
   const statusFilter = searchParams.get("status") || "new";
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+  const limitRaw = parseInt(searchParams.get("limit") || "50", 10);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
+
+  // Whitelist status values — never interpolate user input into SQL or
+  // forward arbitrary strings to a status filter.
+  const validStatuses = new Set(["new", "replied", "skipped", "archived", "all"]);
+  const status = validStatuses.has(statusFilter) ? statusFilter : "new";
 
   let query = `SELECT * FROM tweets WHERE 1=1`;
   const params: unknown[] = [];
 
-  if (statusFilter !== "all") {
+  if (status !== "all") {
     query += " AND status = ?";
-    params.push(statusFilter);
+    params.push(status);
   }
 
-  if (sinceId) {
-    query += " AND id > ?";
-    params.push(parseInt(sinceId));
+  if (sinceIdRaw) {
+    const sinceId = parseInt(sinceIdRaw, 10);
+    if (Number.isInteger(sinceId) && sinceId > 0) {
+      query += " AND id > ?";
+      params.push(sinceId);
+    }
   }
 
   query += " ORDER BY created_at_twitter DESC LIMIT ?";

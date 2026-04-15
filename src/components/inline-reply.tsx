@@ -157,7 +157,9 @@ export function InlineReply({ tweet, session, updateSession, onDismiss, onSent }
 
   const tweetUrl = `https://x.com/${tweet.author_handle}/status/${tweet.twitter_tweet_id}`;
 
-  const EXTENSION_ID = "YOUR_CHROME_EXTENSION_ID";
+  // Set NEXT_PUBLIC_EXTENSION_ID in your env. Empty string disables the
+  // extension path and falls back to clipboard copy.
+  const EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID || "";
 
   async function postReply() {
     if (!draft.trim() || draft.length > 280 || sending || !approved) return;

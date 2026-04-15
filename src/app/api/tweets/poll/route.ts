@@ -36,19 +36,45 @@ export async function POST() {
     for (const user of result.includes.users) userMap.set(user.id, user);
   }
 
+  // SSRF guard: media URLs get forwarded to your Claude/vision server, which
+  // will fetch them. Only accept URLs on Twitter's CDN domains so a
+  // hijacked / malformed X API response can't aim our backend at internal
+  // IPs, file://, etc.
+  const isTwitterMediaUrl = (u: string | undefined): u is string => {
+    if (!u) return false;
+    try {
+      const h = new URL(u).hostname;
+      return (
+        h === "pbs.twimg.com" ||
+        h === "video.twimg.com" ||
+        h.endsWith(".twimg.com")
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const mediaMap = new Map<string, { url: string; type: string; preview_image_url?: string; videoUrl?: string }>();
   if (result.includes?.media) {
     for (const media of result.includes.media) {
-      const url = media.url || media.preview_image_url;
+      const rawUrl = media.url || media.preview_image_url;
+      const url = isTwitterMediaUrl(rawUrl) ? rawUrl : undefined;
       // Extract best quality video URL from variants
       let videoUrl: string | undefined;
       if (media.type === "video" && media.variants) {
         const mp4s = media.variants
-          .filter((v) => v.content_type === "video/mp4" && v.bit_rate)
+          .filter((v) => v.content_type === "video/mp4" && v.bit_rate && isTwitterMediaUrl(v.url))
           .sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
         videoUrl = mp4s[0]?.url;
       }
-      if (url) mediaMap.set(media.media_key, { url, type: media.type, preview_image_url: media.preview_image_url, videoUrl });
+      if (url) {
+        mediaMap.set(media.media_key, {
+          url,
+          type: media.type,
+          preview_image_url: isTwitterMediaUrl(media.preview_image_url) ? media.preview_image_url : undefined,
+          videoUrl,
+        });
+      }
     }
   }
 

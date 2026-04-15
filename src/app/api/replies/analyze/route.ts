@@ -92,49 +92,16 @@ Return ONLY the JSON object. If there's nothing notable to extract, return empty
       styleRules: string[];
     };
 
-    const timestamp = new Date().toISOString().split("T")[0];
-    const hasUpdates = (parsed.memoryNotes?.length > 0) || (parsed.styleRules?.length > 0);
-
-    if (hasUpdates) {
-      // Ensure profile row exists
-      await db
-        .prepare("INSERT OR IGNORE INTO profile (id, twitter_user_id, twitter_handle, access_token, refresh_token, token_expires_at) VALUES (1, '', '', '', '', 0)")
-        .run();
-
-      const currentPersona = profile?.ai_persona || "";
-      const currentTone = profile?.tone_preference || "";
-
-      let updatedPersona = currentPersona;
-      if (parsed.memoryNotes && parsed.memoryNotes.length > 0) {
-        const notes = parsed.memoryNotes.map((n) => `- [${timestamp}] ${n}`).join("\n");
-        updatedPersona = currentPersona ? `${currentPersona}\n${notes}` : notes;
-      }
-
-      let updatedTone = currentTone;
-      if (parsed.styleRules && parsed.styleRules.length > 0) {
-        const rules = parsed.styleRules.map((r) => `- [${timestamp}] ${r}`).join("\n");
-        updatedTone = currentTone ? `${currentTone}\n${rules}` : rules;
-      }
-
-      const updates: string[] = [];
-      const params: unknown[] = [];
-
-      if (updatedPersona !== currentPersona) {
-        updates.push("ai_persona = ?");
-        params.push(updatedPersona);
-      }
-      if (updatedTone !== currentTone) {
-        updates.push("tone_preference = ?");
-        params.push(updatedTone);
-      }
-
-      if (updates.length > 0) {
-        updates.push("updated_at = unixepoch()");
-        await db.prepare(`UPDATE profile SET ${updates.join(", ")} WHERE id = 1`).bind(...params).run();
-      }
-    }
-
-    return NextResponse.json({ ok: true, memoryNotes: parsed.memoryNotes, styleRules: parsed.styleRules });
+    // SECURITY: do NOT auto-mutate persona/tone based on LLM extraction.
+    // The chat history fed into this prompt contains attacker-controlled
+    // tweet text, which could prompt-inject the LLM into emitting arbitrary
+    // "memory notes" that get persisted forever. Return the proposals to the
+    // client and require explicit user action to save them via /api/settings.
+    return NextResponse.json({
+      ok: true,
+      proposedMemoryNotes: parsed.memoryNotes || [],
+      proposedStyleRules: parsed.styleRules || [],
+    });
   } catch {
     return NextResponse.json({ ok: false, error: "Analysis failed" });
   }

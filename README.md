@@ -35,6 +35,17 @@ Chrome Extension              → chrome.debugger API (real keystrokes on x.com)
 - **Reply Posting**: Chrome Extension with chrome.debugger API
 - **X API**: OAuth 1.0a for reading tweets from your list
 
+## ⚠️ Security — read before deploying
+
+This is a **single-user app that holds the keys to your X account**. Read this section before pushing it anywhere on the public internet.
+
+- Every API route is gated by HTTP Basic Auth via `src/middleware.ts`. **You must set `WEBAPP_SECRET`** (min 16 chars, generate with `openssl rand -base64 32`) before deploying or the worker returns 500. Without it, anyone who learns your `*.workers.dev` URL can post tweets from your account, burn your X API quota, and burn your Claude/Anthropic spend.
+- The Chrome extension is allowed to be driven by URLs listed in `chrome-extension/manifest.json` → `externally_connectable.matches`. **Replace `REPLACE-ME.workers.dev` with your real Workers subdomain** before installing the extension. Remove the `localhost:3000` entry for production.
+- Tweet text is attacker-controlled and gets fed into LLM prompts. The "Approve" step before posting is your only line of defense against prompt-injected drafts. Read every draft before approving.
+- Persona / style-guide auto-learning is **disabled by default** in this branch because the LLM extraction step is prompt-injectable. Edit Memory and Style Guide manually in the UI.
+- Your Claude proxy server (the one at `CLAUDE_SERVER_URL`) sees image/video URLs forwarded from the X API. Lock its `/api/vision` and `/api/transcribe-video` to only fetch `*.twimg.com` URLs to prevent SSRF if anything bypasses the worker-side filter.
+- Rotate `WEBAPP_SECRET`, `CLAUDE_SERVER_API_TOKEN`, and your X access tokens if you ever suspect one was exposed (e.g. shown on stream / in a screen recording).
+
 ## Setup
 
 ### 1. X Developer App
@@ -82,10 +93,17 @@ npx wrangler secret put X_ACCESS_TOKEN_SECRET
 npx wrangler secret put X_BEARER_TOKEN
 npx wrangler secret put CLAUDE_SERVER_API_TOKEN
 
+# REQUIRED: auth gate for the deployed worker. Generate a strong secret first:
+#   openssl rand -base64 32
+# Then paste it when prompted. The worker returns 500 if this is unset.
+npx wrangler secret put WEBAPP_SECRET
+
 # Build and deploy
 npx opennextjs-cloudflare build
 npx wrangler deploy
 ```
+
+When you visit your deployed URL, your browser will prompt for credentials. Use any username and your `WEBAPP_SECRET` as the password. Browsers cache it for the session.
 
 ### 5. Chrome Extension
 
@@ -93,8 +111,10 @@ npx wrangler deploy
 2. Enable Developer Mode
 3. Click "Load unpacked" → select the `chrome-extension/` folder
 4. Copy the Extension ID
-5. Update `EXTENSION_ID` in `src/components/inline-reply.tsx`
-6. Rebuild and redeploy
+5. Set `NEXT_PUBLIC_EXTENSION_ID=<your-extension-id>` in `.env.local` (and via `wrangler secret put NEXT_PUBLIC_EXTENSION_ID` for the deployed worker)
+6. **Edit `chrome-extension/manifest.json`** and replace `REPLACE-ME.workers.dev` with your real Workers subdomain in `externally_connectable.matches`. Remove the `localhost:3000` entry unless you actively run the dev server.
+7. Reload the extension from `chrome://extensions`
+8. Rebuild and redeploy the worker
 
 ## How It Works
 

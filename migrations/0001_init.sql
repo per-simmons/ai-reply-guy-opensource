@@ -1,18 +1,13 @@
 -- AI Reply Guy - Initial Schema
 
--- User profile + OAuth tokens (single user)
+-- User profile (single user). OAuth credentials are kept in wrangler secrets,
+-- NOT in this table. Do not add token columns here — if you store OAuth tokens
+-- in D1, an unauthenticated leak becomes a full account takeover.
 CREATE TABLE profile (
   id INTEGER PRIMARY KEY DEFAULT 1,
-  twitter_user_id TEXT NOT NULL,
-  twitter_handle TEXT NOT NULL,
-  twitter_name TEXT,
-  twitter_avatar_url TEXT,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT NOT NULL,
-  token_expires_at INTEGER NOT NULL,
-  x_list_id TEXT,
   ai_persona TEXT DEFAULT '',
   tone_preference TEXT DEFAULT 'professional',
+  x_list_id TEXT,
   created_at INTEGER DEFAULT (unixepoch()),
   updated_at INTEGER DEFAULT (unixepoch())
 );

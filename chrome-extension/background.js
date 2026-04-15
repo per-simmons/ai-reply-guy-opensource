@@ -12,7 +12,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Listen for messages from the dashboard
+// Listen for messages from the dashboard.
+// Sender origin is enforced by the manifest's externally_connectable.matches —
+// keep that list tight. This is a defense-in-depth log of who's calling.
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   log("Received message from", sender.url, "action:", message.action);
 
@@ -36,6 +38,21 @@ async function handlePostReply(message, sendResponse) {
 
   if (!tweetUrl || !replyText) {
     sendResponse({ success: false, error: "Missing tweetUrl or replyText" });
+    return;
+  }
+
+  // Confused-deputy guard: only allow x.com / twitter.com URLs.
+  // Without this, anything that can post a message to the extension can
+  // open ANY URL in a tab and run debugger/keystroke commands against it.
+  let parsed;
+  try {
+    parsed = new URL(tweetUrl);
+  } catch {
+    sendResponse({ success: false, error: "Invalid tweetUrl" });
+    return;
+  }
+  if (parsed.protocol !== "https:" || (parsed.hostname !== "x.com" && parsed.hostname !== "twitter.com")) {
+    sendResponse({ success: false, error: "tweetUrl must be on https://x.com or https://twitter.com" });
     return;
   }
 
